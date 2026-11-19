@@ -1,5 +1,6 @@
 "use server";
 
+import { ApplicationStatus } from "@prisma/client";
 import OpenAI from "openai";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -33,14 +34,52 @@ async function relinkEmails() {
     }
   }
 }
+const ACTIVE = ["SAVED", "APPLIED", "OA", "INTERVIEW"];
+const RANK: Record<string, number> = { SAVED: 0, APPLIED: 1, OA: 2, INTERVIEW: 3, OFFER: 4 };
+const CATEGORY_TO_STATUS: Record<string, string> = {
+  CONFIRMATION: "APPLIED",
+  OA: "OA",
+  INTERVIEW: "INTERVIEW",
+  OFFER: "OFFER",
+  REJECTION: "REJECTED",
+};
+
+async function updateStatuses() {
+  const apps = await prisma.application.findMany({
+    where: { emails: { some: {} } },
+    include: {
+      emails: { select: { category: true }, orderBy: { receivedAt: "asc" } },
+    },
+  });
+
+  for (const app of apps) {
+    let status: string = app.status;
+
+    for (const e of app.emails) {
+      const target = CATEGORY_TO_STATUS[e.category];
+      if (!target) continue;
+      if (!ACTIVE.includes(status)) break;
+      if (target === "REJECTED" || RANK[target] > RANK[status]) status = target;
+    }
+
+    if (status !== app.status) {
+      await prisma.application.update({
+        where: { id: app.id },
+        data: { status: status as ApplicationStatus },
+      });
+    }
+  }
+}
 export async function syncEmails(_prev: SyncState, _formData: FormData): Promise<SyncState> {
   if (!process.env.OPENAI_API_KEY) {
     return { error: "OPENAI_API_KEY is missing from .env (restart the server after adding it)." };
   }
 
   const account = await prisma.googleAccount.findFirst();
-  if (!account) return { error: "Connect Gmail first." };
-    await relinkEmails();
+    if (!account) return { error: "Connect Gmail first." };
+
+  await relinkEmails();
+  await updateStatuses();
 
   try {
     const gmail = getGmail(account.refreshToken);
@@ -133,8 +172,10 @@ export async function syncEmails(_prev: SyncState, _formData: FormData): Promise
       };
     });
 
-    await prisma.email.createMany({ data: rows, skipDuplicates: true });
+      await prisma.email.createMany({ data: rows, skipDuplicates: true });
+    await updateStatuses();
     revalidatePath("/emails");
+    revalidatePath("/");
 
     const useful = rows.filter((r) => r.category !== "OTHER").length;
     return { message: `Synced ${rows.length} new emails (${useful} look job-related).` };
