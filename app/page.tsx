@@ -71,6 +71,7 @@ export default function Home() {
       <nav className="mb-6 flex gap-4 text-sm text-blue-400">
         <Link href="/resume">Resume</Link>
         <Link href="/match">Match score</Link>
+        <Link href="/emails">Emails</Link>
       </nav>
 
       <form action={addApplication} className="mb-8 flex flex-col gap-3">

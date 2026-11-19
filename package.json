@@ -11,6 +11,7 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "dotenv": "^18.0.10",
+    "googleapis": "^190.0.0",
     "next": "16.4.6",
     "openai": "^7.60.0",
     "react": "19.3.0",
