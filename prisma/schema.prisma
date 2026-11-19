@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,6 +6,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 enum ApplicationStatus {
   SAVED
   APPLIED
@@ -20,6 +15,16 @@ enum ApplicationStatus {
   OFFER
   REJECTED
   GHOSTED
+}
+
+enum EmailCategory {
+  RECRUITER
+  OA
+  INTERVIEW
+  REJECTION
+  OFFER
+  CONFIRMATION
+  OTHER
 }
 
 model Application {
@@ -32,6 +37,16 @@ model Application {
   notes     String?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+
+  matchScores MatchScore[]
+  emails      Email[]
+}
+
+model Resume {
+  id        Int      @id @default(autoincrement())
+  name      String   @default("Main resume")
+  text      String
+  createdAt DateTime @default(now())
 
   matchScores MatchScore[]
 }
@@ -47,24 +62,33 @@ model MatchScore {
   strengths      String[]
   gaps           String[]
   suggestions    String[]
-  jobDescription String
+  jobDescription String?
   createdAt      DateTime    @default(now())
 
   @@index([applicationId])
   @@index([resumeId])
 }
-model Resume {
-  id        Int      @id @default(autoincrement())
-  name      String   @default("Main resume")
-  text      String
-  createdAt DateTime @default(now())
 
-  matchScores MatchScore[]
-}
 model GoogleAccount {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   refreshToken String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Email {
+  id            Int           @id @default(autoincrement())
+  gmailId       String        @unique
+  sender        String
+  subject       String
+  snippet       String
+  category      EmailCategory
+  summary       String
+  company       String?
+  dueAt         DateTime?
+  receivedAt    DateTime
+  createdAt     DateTime      @default(now())
+  applicationId Int?
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
 }
